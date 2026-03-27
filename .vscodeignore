@@ -1,0 +1,9 @@
+src/**
+test/**
+**/*.map
+vitest.config.ts
+tsconfig.json
+esbuild.mjs
+.agents/**
+.claude/**
+skills-lock.json

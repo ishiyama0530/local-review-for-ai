@@ -1,0 +1,12 @@
+node_modules
+dist
+.agents
+.claude
+.codex
+CLAUDE.md
+skills-lock-json
+coverage
+.vscode-test
+test-results
+skills-lock.json
+local-review-for-ai-*

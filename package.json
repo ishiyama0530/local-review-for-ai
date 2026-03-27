@@ -1,0 +1,272 @@
+{
+  "name": "local-review-for-ai",
+  "displayName": "Local Review for AI",
+  "version": "0.1.1",
+  "private": true,
+  "description": "Collect review comments on local and export Markdown for AI agents.",
+  "categories": [
+    "Other"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ishiyama0530/local-review-for-ai.git"
+  },
+  "publisher": "ishiyama",
+  "main": "./dist/extension.js",
+  "scripts": {
+    "build": "node ./esbuild.mjs",
+    "package": "npx @vscode/vsce package",
+    "watch": "node ./esbuild.mjs --watch",
+    "typecheck": "tsc --noEmit -p ./tsconfig.json",
+    "test": "vitest run",
+    "test:e2e": "npm run build && playwright test -c ./test/e2e/playwright.config.ts",
+    "test:watch": "vitest",
+    "lint": "oxlint -c .oxlintrc.json --fix ./src ./test",
+    "format": "oxfmt -c .oxfmtrc.json src test esbuild.mjs vitest.config.ts tsconfig.json package.json",
+    "verify-all": "npm run format && npm run lint && npm run typecheck"
+  },
+  "dependencies": {
+    "@vscode/codicons": "^0.0.45",
+    "github-markdown-css": "^5.9.0",
+    "shiki": "^4.0.2"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.2",
+    "@types/node": "^22.19.15",
+    "@types/vscode": "^1.106.0",
+    "@vitest/coverage-v8": "^4.1.1",
+    "@vscode/test-electron": "^2.5.2",
+    "esbuild": "^0.27.4",
+    "oxfmt": "^0.42.0",
+    "oxlint": "^1.57.0",
+    "playwright": "^1.58.2",
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.1"
+  },
+  "contributes": {
+    "commands": [
+      {
+        "command": "localReviewForAi.submitReview",
+        "title": "Local Review: preview and copy",
+        "shortTitle": "✅ Submit comments",
+        "category": "Local Review for AI"
+      },
+      {
+        "command": "localReviewForAi.copyMarkdown",
+        "title": "Copy",
+        "category": "Local Review for AI"
+      },
+      {
+        "command": "localReviewForAi.discardReview",
+        "title": "Discard Review",
+        "category": "Local Review for AI"
+      },
+      {
+        "command": "localReviewForAi.restoreReview",
+        "title": "Restore Review",
+        "category": "Local Review for AI"
+      },
+      {
+        "command": "localReviewForAi.editComment",
+        "title": "Edit Comment",
+        "category": "Local Review for AI",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "localReviewForAi.deleteComment",
+        "title": "Discard Comment",
+        "category": "Local Review for AI",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "localReviewForAi.addReviewCommentAtLine",
+        "title": "Add Review Comment",
+        "category": "Local Review for AI"
+      },
+      {
+        "command": "localReviewForAi.addFileComment",
+        "title": "Add File Comment",
+        "category": "Local Review for AI"
+      },
+      {
+        "command": "localReviewForAi.createComment",
+        "title": "Comment"
+      },
+      {
+        "command": "localReviewForAi.replyComment",
+        "title": "Reply"
+      },
+      {
+        "command": "localReviewForAi.startReviewComment",
+        "title": "Start a review"
+      },
+      {
+        "command": "localReviewForAi.onetimeCopy",
+        "title": "Copy block",
+        "icon": "$(copy)"
+      },
+      {
+        "command": "localReviewForAi.cancelNewCommentThread",
+        "title": "Cancel",
+        "icon": "$(close)"
+      },
+      {
+        "command": "localReviewForAi.cancelReplyComment",
+        "title": "Cancel",
+        "icon": "$(close)"
+      },
+      {
+        "command": "localReviewForAi.saveComment",
+        "title": "Update"
+      },
+      {
+        "command": "localReviewForAi.cancelComment",
+        "title": "Cancel"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "localReviewForAi.submitReview"
+        },
+        {
+          "command": "localReviewForAi.discardReview"
+        },
+        {
+          "command": "localReviewForAi.restoreReview"
+        },
+        {
+          "command": "localReviewForAi.addFileComment"
+        },
+        {
+          "command": "localReviewForAi.createComment",
+          "when": "false"
+        },
+        {
+          "command": "localReviewForAi.replyComment",
+          "when": "false"
+        },
+        {
+          "command": "localReviewForAi.saveComment",
+          "when": "false"
+        },
+        {
+          "command": "localReviewForAi.cancelComment",
+          "when": "false"
+        },
+        {
+          "command": "localReviewForAi.startReviewComment",
+          "when": "false"
+        },
+        {
+          "command": "localReviewForAi.onetimeCopy",
+          "when": "false"
+        },
+        {
+          "command": "localReviewForAi.cancelNewCommentThread",
+          "when": "false"
+        },
+        {
+          "command": "localReviewForAi.cancelReplyComment",
+          "when": "false"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "localReviewForAi.submitReview",
+          "group": "navigation@9",
+          "when": "localReviewForAi.canSubmit"
+        }
+      ],
+      "scm/change/title": [
+        {
+          "command": "localReviewForAi.submitReview",
+          "group": "navigation@9",
+          "when": "localReviewForAi.canSubmit"
+        }
+      ],
+      "comments/commentThread/context": [
+        {
+          "command": "localReviewForAi.onetimeCopy",
+          "group": "inline@2",
+          "when": "commentController == local-review-for-ai && commentThreadIsEmpty"
+        },
+        {
+          "command": "localReviewForAi.startReviewComment",
+          "group": "inline@1",
+          "when": "commentController == local-review-for-ai && commentThreadIsEmpty && !localReviewForAi.hasComments"
+        },
+        {
+          "command": "localReviewForAi.createComment",
+          "group": "inline@1",
+          "when": "commentController == local-review-for-ai && commentThreadIsEmpty && localReviewForAi.hasComments"
+        },
+        {
+          "command": "localReviewForAi.cancelNewCommentThread",
+          "group": "inline@3",
+          "when": "commentController == local-review-for-ai && commentThreadIsEmpty"
+        },
+        {
+          "command": "localReviewForAi.replyComment",
+          "group": "inline@1",
+          "when": "commentController == local-review-for-ai && !commentThreadIsEmpty"
+        },
+        {
+          "command": "localReviewForAi.cancelReplyComment",
+          "group": "inline@2",
+          "when": "commentController == local-review-for-ai && !commentThreadIsEmpty"
+        }
+      ],
+      "comments/comment/title": [
+        {
+          "command": "localReviewForAi.editComment",
+          "group": "inline@1",
+          "when": "commentController == local-review-for-ai"
+        },
+        {
+          "command": "localReviewForAi.deleteComment",
+          "group": "inline@2",
+          "when": "commentController == local-review-for-ai"
+        }
+      ],
+      "comments/comment/context": [
+        {
+          "command": "localReviewForAi.saveComment",
+          "group": "inline@1",
+          "when": "commentController == local-review-for-ai && localReviewForAi.commentEditable"
+        },
+        {
+          "command": "localReviewForAi.cancelComment",
+          "group": "inline@2",
+          "when": "commentController == local-review-for-ai && localReviewForAi.commentEditable"
+        }
+      ],
+      "editor/lineNumber/context": [
+        {
+          "command": "localReviewForAi.addReviewCommentAtLine",
+          "group": "navigation@9"
+        }
+      ]
+    }
+  },
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "extensionDependencies": [
+    "vscode.git"
+  ],
+  "extensionKind": [
+    "workspace"
+  ],
+  "icon": "assets/icon.png",
+  "engines": {
+    "node": ">=22.0.0 <23",
+    "vscode": "^1.106.0"
+  },
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false
+    }
+  }
+}

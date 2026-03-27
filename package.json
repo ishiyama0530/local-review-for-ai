@@ -1,7 +1,7 @@
 {
   "name": "local-review-for-ai",
   "displayName": "Local Review for AI",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "description": "Collect review comments on local and export Markdown for AI agents.",
   "categories": [

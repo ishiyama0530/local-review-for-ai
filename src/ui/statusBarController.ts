@@ -25,8 +25,8 @@ export class StatusBarController implements vscode.Disposable {
       return;
     }
 
-    this.item.text = `$(comment-discussion) Submit Review (${commentCount})`;
-    this.item.tooltip = "Open review preview";
+    this.item.text = `$(comment-discussion) Submit comments (${commentCount})`;
+    this.item.tooltip = "Open submit comments preview";
     this.item.backgroundColor = undefined;
     this.item.show();
   }

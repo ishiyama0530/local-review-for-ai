@@ -12,19 +12,15 @@ describe("onetimeCopyFormatter", () => {
       language: "typescript",
     });
 
-    expect(markdown.startsWith("### AI Guide\n")).toBe(true);
-    expect(markdown).toContain("- `Line Status`:");
-    expect(markdown).toContain("- `Line`:");
-    expect(markdown).toContain("- `Original Line`:");
-    expect(markdown).toContain("- `Modified Line`:");
+    expect(markdown.startsWith("@xxx/hoge.ts\n")).toBe(true);
+    expect(markdown).not.toContain("### AI Guide");
     expect(markdown).toContain("@xxx/hoge.ts");
-    expect(markdown).toContain("- Line Status: Added");
-    expect(markdown).toContain("- Modified Line: 5");
+    expect(markdown).toContain("- Line: 5");
     expect(markdown).toContain("```typescript");
     expect(markdown).toContain("this.name = name;;;");
   });
 
-  it("複数行範囲の Modified Line を x - y で出力すること", () => {
+  it("複数行範囲の Line を x - y で出力すること", () => {
     const markdown = formatOnetimeCopyBlock({
       path: "src/usecase.ts",
       target: "modified-after",
@@ -34,11 +30,10 @@ describe("onetimeCopyFormatter", () => {
       language: "ts",
     });
 
-    expect(markdown).toContain("- Line Status: Modified (Updated)");
-    expect(markdown).toContain("- Modified Line: 10 - 12");
+    expect(markdown).toContain("- Line: 10 - 12");
   });
 
-  it("target=file のとき Line Status 行を出力しないこと", () => {
+  it("target=file のとき Line 行を出力しないこと", () => {
     const markdown = formatOnetimeCopyBlock({
       path: "README.md",
       target: "file",
@@ -47,7 +42,7 @@ describe("onetimeCopyFormatter", () => {
     });
 
     expect(markdown).toContain("@README.md");
-    expect(markdown).not.toContain("- Line Status:");
+    expect(markdown).not.toContain("- Line:");
     expect(markdown).toContain("```md");
   });
 
@@ -62,8 +57,62 @@ describe("onetimeCopyFormatter", () => {
       language: "ts",
     });
 
-    expect(markdown).toContain("- Line Status: Unchanged");
-    expect(markdown).toContain("- Line: 3 - 5 (Updated)");
+    expect(markdown).toContain("- Line: 3 - 5");
+  });
+
+  it("target=unchanged で anchorSide=original のとき括弧ラベルを付けないこと", () => {
+    const markdown = formatOnetimeCopyBlock({
+      path: "src/sample.ts",
+      target: "unchanged",
+      anchorSide: "original",
+      anchorLineStart: 7,
+      anchorLineEnd: 9,
+      code: "line7();\nline8();\nline9();",
+      language: "ts",
+    });
+
+    expect(markdown).toContain("- Line: 7 - 9");
+    expect(markdown).not.toContain("- Line: 7 - 9 (Missing/Not Fully in Current Code)");
+  });
+
+  it("target=deleted のとき no longer exists ラベルを付けること", () => {
+    const markdown = formatOnetimeCopyBlock({
+      path: "src/sample.ts",
+      target: "deleted",
+      originalLine: 11,
+      originalLineEnd: 12,
+      code: "old1();\nold2();",
+      language: "ts",
+    });
+
+    expect(markdown).toContain("- Line: 11 - 12 (Missing/Not Fully in Current Code)");
+  });
+
+  it("target=unchanged でも noLongerExistsInCurrentCode=true のとき no longer exists ラベルを付けること", () => {
+    const markdown = formatOnetimeCopyBlock({
+      path: "src/sample.ts",
+      target: "unchanged",
+      noLongerExistsInCurrentCode: true,
+      anchorLineStart: 15,
+      anchorLineEnd: 15,
+      code: "legacy();",
+      language: "ts",
+    });
+
+    expect(markdown).toContain("- Line: 15 (Missing/Not Fully in Current Code)");
+  });
+
+  it("target=mixed のとき Line を追加ラベルなしで出力すること", () => {
+    const markdown = formatOnetimeCopyBlock({
+      path: "src/sample.ts",
+      target: "mixed",
+      anchorLineStart: 10,
+      anchorLineEnd: 12,
+      code: "line10();\nline11();\nline12();",
+      language: "ts",
+    });
+
+    expect(markdown).toContain("- Line: 10 - 12");
   });
 
   it("commentText がある場合はコードブロックの後ろに含めること", () => {

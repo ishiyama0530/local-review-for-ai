@@ -290,7 +290,7 @@ export async function typeDraftInEmptyCommentThread(
   const widget = await waitForEmptyCommentThreadWidget(page);
   const placeholder = widget
     .locator("div.editorPlaceholder")
-    .filter({ hasText: /^Leave a comment$/i })
+    .filter({ hasText: /^Add a comment$/i })
     .first();
   if ((await placeholder.count()) > 0 && (await placeholder.isVisible().catch(() => false))) {
     await placeholder.click({ force: true });
@@ -598,7 +598,7 @@ export async function waitForCommentEditMode(page: Page, timeoutMs = 10_000): Pr
 export async function typeReplyDraft(page: Page, commentText: string): Promise<void> {
   const placeholder = page
     .locator("div.editorPlaceholder")
-    .filter({ hasText: /^Leave a comment$/i })
+    .filter({ hasText: /^Add a comment$/i })
     .first();
   const isPlaceholderVisible = await waitForCondition(async () => {
     if (await placeholder.isVisible().catch(() => false)) {
@@ -974,7 +974,7 @@ async function trySubmitCommentInput(page: Page, commentText: string): Promise<b
   }
 
   const commentTextarea = page
-    .locator("textarea[placeholder='Leave a comment'], textarea[aria-label*='comment']")
+    .locator("textarea[placeholder='Add a comment'], textarea[aria-label*='comment']")
     .last();
   if ((await commentTextarea.count()) > 0 && (await commentTextarea.isVisible())) {
     await commentTextarea.fill(commentText);

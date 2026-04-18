@@ -4,7 +4,7 @@ import { formatReviewMarkdown } from "../src/review/markdownFormatter";
 import { buildReviewComment, buildReviewSession } from "./fixtures/sessionFactory";
 
 describe("markdownFormatter", () => {
-  it("AI向けフィールド説明を先頭に出し、メタ情報ヘッダとタイトル行を出力しないこと", () => {
+  it("メタ情報ヘッダとタイトル行を出力せず、先頭からコメント一覧を出すこと", () => {
     const session = buildReviewSession([
       buildReviewComment({
         id: "c1",
@@ -20,11 +20,8 @@ describe("markdownFormatter", () => {
     const markdown = formatReviewMarkdown(session, "2026-03-26T12:34:56.000Z");
 
     expect(markdown).not.toContain("# Code Review Comments");
-    expect(markdown.startsWith("### AI Guide\n")).toBe(true);
-    expect(markdown).toContain("- `Line Status`:");
-    expect(markdown).toContain("- `Line`:");
-    expect(markdown).toContain("- `Original Line`:");
-    expect(markdown).toContain("- `Modified Line`:");
+    expect(markdown.startsWith("## 1. @src/a.ts\n")).toBe(true);
+    expect(markdown).not.toContain("### AI Guide");
     expect(markdown).toContain("## 1. @src/a.ts");
     expect(markdown).not.toContain("> Review Target:");
     expect(markdown).not.toContain("> Repository:");
@@ -109,16 +106,56 @@ describe("markdownFormatter", () => {
     ]);
     const markdown = formatReviewMarkdown(session, "2026-03-26T12:34:56.000Z");
 
-    expect(markdown).toContain("- Line Status: Added");
-    expect(markdown).toContain("- Line Status: Deleted");
-    expect(markdown).toContain("- Line Status: Modified (Original)");
-    expect(markdown).toContain("- Line Status: Modified (Updated)");
-    expect(markdown).toContain("- Line Status: Unchanged");
-    expect(markdown).toContain("- Line: 21 - 22 (Updated)");
-    expect(markdown).not.toContain("- Line Status: File");
-    expect(markdown).toContain("- Original Line: 11");
-    expect(markdown).toContain("- Modified Line: 10");
+    expect(markdown).toContain("- Line: 10");
+    expect(markdown).toContain("- Line: 11 (Missing/Not Fully in Current Code)");
+    expect(markdown).toContain("- Line: 12 (Missing/Not Fully in Current Code)");
+    expect(markdown).toContain("- Line: 13");
+    expect(markdown).toContain("- Line: 21 - 22");
+    expect(markdown).not.toContain("- Line Status:");
+    expect(markdown).not.toContain("- Original Line:");
+    expect(markdown).not.toContain("- Modified Line:");
     expect(markdown).toContain("```ts");
+  });
+
+  it("target=unchanged かつ anchorSide=original のとき Line に括弧ラベルを付けないこと", () => {
+    const session = buildReviewSession([
+      buildReviewComment({
+        id: "c1",
+        sequence: 1,
+        path: "src/a.ts",
+        target: "unchanged",
+        code: "const stable = 1;",
+        language: "ts",
+        comment: "Unchanged on original side.",
+        anchorSide: "original",
+        anchorLineStart: 31,
+        anchorLineEnd: 32,
+      }),
+    ]);
+
+    const markdown = formatReviewMarkdown(session, "2026-03-26T12:34:56.000Z");
+    expect(markdown).toContain("- Line: 31 - 32");
+    expect(markdown).not.toContain("- Line: 31 - 32 (Missing/Not Fully in Current Code)");
+  });
+
+  it("target=unchanged でも noLongerExistsInCurrentCode=true のとき括弧ラベルを付けること", () => {
+    const session = buildReviewSession([
+      buildReviewComment({
+        id: "c1",
+        sequence: 1,
+        path: "src/a.ts",
+        target: "unchanged",
+        noLongerExistsInCurrentCode: true,
+        code: "legacy();",
+        language: "ts",
+        comment: "Legacy-only line.",
+        anchorLineStart: 40,
+        anchorLineEnd: 40,
+      }),
+    ]);
+
+    const markdown = formatReviewMarkdown(session, "2026-03-26T12:34:56.000Z");
+    expect(markdown).toContain("- Line: 40 (Missing/Not Fully in Current Code)");
   });
 
   it("バイナリコメントはコードブロックではなく固定文言を出すこと", () => {
@@ -154,7 +191,7 @@ describe("markdownFormatter", () => {
     ]);
     const markdown = formatReviewMarkdown(session, "2026-03-26T12:34:56.000Z");
 
-    expect(markdown).not.toContain("- Line Status:");
+    expect(markdown).not.toContain("- Line:");
     expect(markdown).toContain("\ntest\n");
     expect(markdown).not.toContain("Comment:");
     expect(markdown).not.toContain("```");
@@ -400,7 +437,7 @@ describe("markdownFormatter", () => {
     expect(markdown).toContain("### 1.2.\ng2");
   });
 
-  it("複数行コメントでは Modified Line を範囲表記で出力すること", () => {
+  it("複数行コメントでは Line を範囲表記で出力すること", () => {
     const comment = buildReviewComment({
       id: "c1",
       sequence: 1,
@@ -416,7 +453,26 @@ describe("markdownFormatter", () => {
     const session = buildReviewSession([comment]);
 
     const markdown = formatReviewMarkdown(session, "2026-03-26T12:34:56.000Z");
-    expect(markdown).toContain("- Modified Line: 20 - 24");
+    expect(markdown).toContain("- Line: 20 - 24");
+  });
+
+  it("複数行範囲で種別が混在するコメントは追加ラベルなしで出力すること", () => {
+    const comment = buildReviewComment({
+      id: "c1",
+      sequence: 1,
+      path: "src/a.ts",
+      target: "mixed",
+      modifiedLine: 6,
+      code: "line6();\nline7();\nline8();",
+      language: "ts",
+      comment: "mixed range",
+    });
+    comment.threadRangeStartLine = 6;
+    comment.threadRangeEndLine = 8;
+    const session = buildReviewSession([comment]);
+
+    const markdown = formatReviewMarkdown(session, "2026-03-26T12:34:56.000Z");
+    expect(markdown).toContain("- Line: 6 - 8");
   });
 
   it("同一ファイル内では File コメントを先頭にし、次に選択行順で並ぶこと", () => {

@@ -1,51 +1,29 @@
-import type { ReviewComment, ReviewSession, ReviewTarget } from "../types";
+import type { ReviewComment, ReviewSession } from "../types";
 import {
-  buildAiFieldGuideLines,
   buildCodeFenceLines,
   finalizeFormatterOutput,
   formatLineRange,
+  NO_LONGER_EXISTS_IN_CURRENT_CODE_LABEL,
   formatOutputPath,
 } from "./formatterUtils";
 
-const TARGET_LABELS: Record<ReviewTarget, string> = {
-  added: "Added",
-  deleted: "Deleted",
-  "modified-before": "Modified (Original)",
-  "modified-after": "Modified (Updated)",
-  unchanged: "Unchanged",
-  file: "File",
-};
-
-export function mapReviewTargetLabel(target: ReviewTarget): string {
-  return TARGET_LABELS[target];
+function isNoLongerExistingLine(comment: ReviewComment): boolean {
+  if (comment.noLongerExistsInCurrentCode !== undefined) {
+    return comment.noLongerExistsInCurrentCode;
+  }
+  return comment.target === "deleted" || comment.target === "modified-before";
 }
 
 export function formatReviewMarkdown(session: ReviewSession, _generatedAtUtc: string): string {
-  const lines: string[] = [...buildAiFieldGuideLines(), ""];
+  const lines: string[] = [];
 
   const orderedGroups = groupCommentsForOutput(sortCommentsForOutput(session.comments));
   for (const [groupIndex, group] of orderedGroups.entries()) {
     const leadComment = group.comments[0];
     lines.push(`## ${groupIndex + 1}. ${formatOutputPath(leadComment.path)}`);
-    if (leadComment.target !== "file") {
-      lines.push(`- Line Status: ${mapReviewTargetLabel(leadComment.target)}`);
-    }
-    if (leadComment.target === "unchanged") {
-      const anchorStart = leadComment.anchorLineStart ?? leadComment.threadRangeStartLine;
-      if (anchorStart !== undefined) {
-        const anchorEnd =
-          leadComment.anchorLineEnd ?? leadComment.threadRangeEndLine ?? anchorStart;
-        const anchorSideLabel = leadComment.anchorSide === "original" ? "Original" : "Updated";
-        lines.push(`- Line: ${formatLineRange(anchorStart, anchorEnd)} (${anchorSideLabel})`);
-      }
-    }
-    if (leadComment.originalLine !== undefined) {
-      lines.push(`- Original Line: ${leadComment.originalLine}`);
-    }
-    if (leadComment.modifiedLine !== undefined) {
-      lines.push(
-        `- Modified Line: ${formatLineRange(leadComment.modifiedLine, leadComment.threadRangeEndLine)}`,
-      );
+    const lineSummary = buildLineSummary(leadComment);
+    if (lineSummary) {
+      lines.push(lineSummary);
     }
     lines.push("");
     const codeFenceLines = buildCodeFenceLines(
@@ -127,6 +105,22 @@ function getLineEnd(comment: ReviewComment): number | undefined {
     comment.modifiedLine ??
     comment.originalLine
   );
+}
+
+function buildLineSummary(comment: ReviewComment): string | undefined {
+  if (comment.target === "file") {
+    return undefined;
+  }
+  const lineStart = getLineStart(comment);
+  if (lineStart === undefined) {
+    return undefined;
+  }
+  const lineEnd = getLineEnd(comment) ?? lineStart;
+  const lineRange = formatLineRange(lineStart, lineEnd);
+  if (isNoLongerExistingLine(comment)) {
+    return `- Line: ${lineRange} (${NO_LONGER_EXISTS_IN_CURRENT_CODE_LABEL})`;
+  }
+  return `- Line: ${lineRange}`;
 }
 
 function isFileTarget(comment: ReviewComment): boolean {

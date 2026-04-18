@@ -152,8 +152,8 @@ test("行コメント追加からプレビュー編集/Copy/Cancel/Discardまで
     await waitForPreviewFrameClosed(page);
 
     await executeCommandFromPalette(page, [
-      "Local Review for AI: preview and copy",
-      "preview and copy",
+      "Local Review for AI: Submit comments",
+      "Submit comments",
     ]);
     await waitForCondition(async () => !(await hasPreviewFrame(page)), 5_000);
   });
@@ -193,8 +193,7 @@ test("差分内の未変更行にコメントすると Unchanged として出力
 
     const copiedMarkdown = await copyMarkdownFromCommand(page, unchangedMarker);
     expect(copiedMarkdown).toContain(unchangedMarker);
-    expect(copiedMarkdown).toContain("- Line Status: Unchanged");
-    expect(copiedMarkdown).toMatch(/- Line: \d+( - \d+)? \(Updated\)/);
+    expect(copiedMarkdown).toMatch(/- Line: \d+( - \d+)?$/m);
   });
 });
 
@@ -209,7 +208,7 @@ test("Git未初期化ワークスペースでもコメント作成とCopyがで�
 
       const copiedMarkdown = await copyMarkdownFromCommand(page, marker);
       expect(copiedMarkdown).toContain(marker);
-      expect(copiedMarkdown).toContain("- Line Status: Unchanged");
+      expect(copiedMarkdown).toMatch(/- Line: \d+( - \d+)?$/m);
       expect(copiedMarkdown).toMatch(/@[^ \n]+\/src\/plain\.ts/);
     },
   );
@@ -275,8 +274,8 @@ test("Edit/Update/Cancel/Discard Comment の公開定義とDiscard導線が正�
 
     await clickCommentActionIconForComment(page, originalMarker, "Discard Comment");
     await executeCommandFromPalette(page, [
-      "Local Review for AI: preview and copy",
-      "preview and copy",
+      "Local Review for AI: Submit comments",
+      "Submit comments",
     ]);
     await waitForCondition(async () => !(await hasPreviewFrame(page)), 5_000);
   });
@@ -327,7 +326,7 @@ test("Reload後のRestore導線でセッション復元できること", async (
       ]);
     }
 
-    await waitForStatusBarText(page, ["Submit Review"], 30_000);
+    await waitForStatusBarText(page, ["Submit comments"], 30_000);
     const restoredMarkdown = await copyMarkdownFromCommand(page, restoreMarker);
     expect(restoredMarkdown).toContain(restoreMarker);
   });

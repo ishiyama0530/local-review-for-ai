@@ -5,6 +5,7 @@ interface BuildCommentInput {
   readonly sequence: number;
   readonly path: string;
   readonly target: ReviewComment["target"];
+  readonly noLongerExistsInCurrentCode?: boolean;
   readonly originalLine?: number;
   readonly modifiedLine?: number;
   readonly code: string;
@@ -22,6 +23,7 @@ export function buildReviewComment(input: BuildCommentInput): ReviewComment {
     sequence: input.sequence,
     path: input.path,
     target: input.target,
+    noLongerExistsInCurrentCode: input.noLongerExistsInCurrentCode,
     originalLine: input.originalLine,
     modifiedLine: input.modifiedLine,
     code: input.code,

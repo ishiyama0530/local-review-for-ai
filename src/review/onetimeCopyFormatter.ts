@@ -1,16 +1,16 @@
 import type { ReviewTarget } from "../types";
 import {
-  buildAiFieldGuideLines,
   buildCodeFenceLines,
   finalizeFormatterOutput,
   formatLineRange,
+  NO_LONGER_EXISTS_IN_CURRENT_CODE_LABEL,
   formatOutputPath,
 } from "./formatterUtils";
-import { mapReviewTargetLabel } from "./markdownFormatter";
 
 export interface OnetimeCopyBlockInput {
   readonly path: string;
   readonly target: ReviewTarget;
+  readonly noLongerExistsInCurrentCode?: boolean;
   readonly originalLine?: number;
   readonly originalLineEnd?: number;
   readonly modifiedLine?: number;
@@ -25,22 +25,11 @@ export interface OnetimeCopyBlockInput {
 }
 
 export function formatOnetimeCopyBlock(input: OnetimeCopyBlockInput): string {
-  const lines: string[] = [...buildAiFieldGuideLines(), ""];
+  const lines: string[] = [];
   lines.push(formatOutputPath(input.path));
-  if (input.target !== "file") {
-    lines.push(`- Line Status: ${mapReviewTargetLabel(input.target)}`);
-  }
-  if (input.target === "unchanged" && input.anchorLineStart !== undefined) {
-    const anchorSideLabel = input.anchorSide === "original" ? "Original" : "Updated";
-    lines.push(
-      `- Line: ${formatLineRange(input.anchorLineStart, input.anchorLineEnd)} (${anchorSideLabel})`,
-    );
-  }
-  if (input.originalLine !== undefined) {
-    lines.push(`- Original Line: ${formatLineRange(input.originalLine, input.originalLineEnd)}`);
-  }
-  if (input.modifiedLine !== undefined) {
-    lines.push(`- Modified Line: ${formatLineRange(input.modifiedLine, input.modifiedLineEnd)}`);
+  const lineSummary = buildOnetimeLineSummary(input);
+  if (lineSummary) {
+    lines.push(lineSummary);
   }
   lines.push("");
   const codeLines = buildCodeFenceLines(input.code, input.language, input.isBinarySnippet);
@@ -53,4 +42,30 @@ export function formatOnetimeCopyBlock(input: OnetimeCopyBlockInput): string {
     lines.push(commentText);
   }
   return finalizeFormatterOutput(lines);
+}
+
+function resolveLineStart(input: OnetimeCopyBlockInput): number | undefined {
+  return input.anchorLineStart ?? input.modifiedLine ?? input.originalLine;
+}
+
+function resolveLineEnd(input: OnetimeCopyBlockInput): number | undefined {
+  return input.anchorLineEnd ?? input.modifiedLineEnd ?? input.originalLineEnd;
+}
+
+function buildOnetimeLineSummary(input: OnetimeCopyBlockInput): string | undefined {
+  if (input.target === "file") {
+    return undefined;
+  }
+  const lineStart = resolveLineStart(input);
+  if (lineStart === undefined) {
+    return undefined;
+  }
+  const lineEnd = resolveLineEnd(input) ?? lineStart;
+  const lineRange = formatLineRange(lineStart, lineEnd);
+  const isNoLongerExistingLine =
+    input.noLongerExistsInCurrentCode ?? (input.target === "deleted" || input.target === "modified-before");
+  if (isNoLongerExistingLine) {
+    return `- Line: ${lineRange} (${NO_LONGER_EXISTS_IN_CURRENT_CODE_LABEL})`;
+  }
+  return `- Line: ${lineRange}`;
 }

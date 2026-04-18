@@ -398,7 +398,8 @@ export async function createPreviewHtml(
       background: var(--vscode-button-background);
       color: var(--vscode-button-foreground);
     }
-    #discardReview {
+    #discardReview,
+    #copyAndDiscardReview {
       background: color-mix(in srgb, #f2c94c 72%, var(--vscode-editor-background) 28%);
       border-color: color-mix(in srgb, #d6a300 56%, var(--border) 44%);
       color: color-mix(in srgb, #121212 88%, var(--vscode-editor-foreground) 12%);
@@ -409,74 +410,6 @@ export async function createPreviewHtml(
     }
     button:active {
       transform: translateY(1px);
-    }
-    button[data-tooltip]::after {
-      content: attr(data-tooltip);
-      position: absolute;
-      left: 50%;
-      top: 100%;
-      transform: translate(-50%, 14px);
-      padding: 6px 8px;
-      border-radius: 6px;
-      border: 1px solid
-        color-mix(in srgb, var(--vscode-editor-foreground) 28%, transparent);
-      background: color-mix(
-        in srgb,
-        var(--vscode-editorHoverWidget-background, var(--vscode-editor-background)) 94%,
-        #000 6%
-      );
-      color: var(--vscode-editorHoverWidget-foreground, var(--vscode-editor-foreground));
-      font-size: 12px;
-      font-weight: 500;
-      line-height: 1.2;
-      white-space: normal;
-      max-width: min(360px, calc(100vw - 32px));
-      box-sizing: border-box;
-      pointer-events: none;
-      opacity: 0;
-      z-index: 20;
-      box-shadow: 0 6px 18px color-mix(in srgb, #000 24%, transparent);
-      transition: opacity 120ms ease;
-    }
-    button[data-tooltip]::before {
-      content: "";
-      position: absolute;
-      left: 50%;
-      top: 100%;
-      transform: translate(-50%, 6px);
-      width: 8px;
-      height: 8px;
-      border-right: 1px solid
-        color-mix(in srgb, var(--vscode-editor-foreground) 28%, transparent);
-      border-bottom: 1px solid
-        color-mix(in srgb, var(--vscode-editor-foreground) 28%, transparent);
-      background: color-mix(
-        in srgb,
-        var(--vscode-editorHoverWidget-background, var(--vscode-editor-background)) 94%,
-        #000 6%
-      );
-      pointer-events: none;
-      opacity: 0;
-      z-index: 19;
-      rotate: 45deg;
-      transition: opacity 120ms ease;
-    }
-    button[data-tooltip]:hover::after,
-    button[data-tooltip]:hover::before,
-    button[data-tooltip]:focus-visible::after,
-    button[data-tooltip]:focus-visible::before {
-      opacity: 1;
-    }
-    #discardReview[data-tooltip]::after {
-      left: auto;
-      right: 0;
-      transform: translate(0, 14px);
-      text-align: left;
-    }
-    #discardReview[data-tooltip]::before {
-      left: auto;
-      right: 14px;
-      transform: translate(0, 6px);
     }
     .button-content {
       display: inline-flex;
@@ -622,11 +555,12 @@ export async function createPreviewHtml(
 <body>
   <div class="topbar">
     <div class="actions actions-left">
-      <button id="copyMarkdown" data-testid="preview-copy" class="primary"><span class="button-content"><span class="button-icon codicon codicon-copy" aria-hidden="true"></span><span>Copy</span></span></button>
-      <button id="closePreview" data-testid="preview-cancel" class="secondary"><span class="button-content"><span class="button-icon codicon codicon-close" aria-hidden="true"></span><span>Cancel</span></span></button>
+      <button id="closePreview" data-testid="preview-cancel" class="secondary"><span class="button-content"><span class="button-icon codicon codicon-close" aria-hidden="true"></span><span>Close</span></span></button>
     </div>
     <div class="actions actions-right">
-      <button id="discardReview" data-testid="preview-discard" class="secondary" title="Discard all review comments and reset the current session." aria-label="Discard all review comments and reset the current session." data-tooltip="Discard all review comments and reset the current session."><span class="button-content"><span class="button-icon codicon codicon-eraser" aria-hidden="true"></span><span>Discard comments</span></span></button>
+      <button id="copyMarkdown" data-testid="preview-copy" class="primary"><span class="button-content"><span class="button-icon codicon codicon-copy" aria-hidden="true"></span><span>Copy</span></span></button>
+      <button id="discardReview" data-testid="preview-discard" class="secondary" aria-label="Discard all review comments and reset the current session."><span class="button-content"><span class="button-icon codicon codicon-trash" aria-hidden="true"></span><span>Discard</span></span></button>
+      <button id="copyAndDiscardReview" data-testid="preview-copy-discard" class="primary"><span class="button-content"><span class="button-icon codicon codicon-copy" aria-hidden="true"></span><span>Copy & Discard</span></span></button>
     </div>
   </div>
   <div class="layout">
@@ -764,6 +698,12 @@ export async function createPreviewHtml(
     });
     document.getElementById('discardReview').addEventListener('click', () => {
       vscode.postMessage({ type: 'discardReview' });
+    });
+    document.getElementById('copyAndDiscardReview').addEventListener('click', () => {
+      if (!(markdownEditor instanceof HTMLTextAreaElement)) {
+        return;
+      }
+      vscode.postMessage({ type: 'copyAndDiscardReview', markdown: markdownEditor.value });
     });
   </script>
 </body>

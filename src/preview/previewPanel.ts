@@ -4,6 +4,7 @@ import { createPreviewHtml, renderSimpleMarkdown } from "./previewHtml";
 
 export interface PreviewPanelCallbacks {
   readonly onCopyMarkdown: (markdown: string) => Promise<void>;
+  readonly onCopyAndDiscardReview: (markdown: string) => Promise<boolean>;
   readonly onDiscardReview: () => Promise<void>;
   readonly onClosed: () => Promise<void>;
 }
@@ -89,6 +90,16 @@ export class PreviewPanel implements vscode.Disposable {
               return;
             }
             await this.callbacks.onCopyMarkdown(message.markdown);
+            return;
+          }
+          case "copyAndDiscardReview": {
+            if (typeof message.markdown !== "string") {
+              return;
+            }
+            const handled = await this.callbacks.onCopyAndDiscardReview(message.markdown);
+            if (handled) {
+              this.close();
+            }
             return;
           }
           case "previewMarkdownChanged": {

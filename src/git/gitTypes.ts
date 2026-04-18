@@ -26,6 +26,7 @@ export interface GitChange {
 
 export interface GitRepositoryState {
   readonly HEAD: GitBranch | undefined;
+  readonly indexChanges?: readonly GitChange[];
   readonly workingTreeChanges: readonly GitChange[];
   readonly untrackedChanges: readonly GitChange[];
   readonly onDidChange: vscode.Event<void>;

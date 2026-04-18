@@ -5,17 +5,7 @@ export function formatOutputPath(path: string): string {
   return `@${path}`;
 }
 
-const AI_FIELD_GUIDE_LINES: readonly string[] = [
-  "### AI Guide",
-  "- `Line Status`: diff role. `Added`(+), `Deleted`(-), `Modified (Original)`(old), `Modified (Updated)`(new), `Unchanged`(context). Omitted for `file`.",
-  "- `Line`: anchor for `Unchanged`; label is `Original` on old side, otherwise `Updated`.",
-  "- `Original Line`: old-side line number (if present).",
-  "- `Modified Line`: new-side line number/range `<n>` or `<start> - <end>` (if present).",
-];
-
-export function buildAiFieldGuideLines(): string[] {
-  return [...AI_FIELD_GUIDE_LINES];
-}
+export const NO_LONGER_EXISTS_IN_CURRENT_CODE_LABEL = "Missing/Not Fully in Current Code";
 
 export function formatLineRange(startLine: number, endLine?: number): string {
   if (endLine === undefined || endLine <= startLine) {

@@ -1,7 +1,9 @@
 import * as path from "node:path";
 import * as vscode from "vscode";
 
+import { findMatchingChangeForPath } from "./git/changeMatcher";
 import { buildDiffMap, type DiffMap, type DiffSide } from "./git/diffMapBuilder";
+import { resolveDiffSide } from "./git/diffSideResolver";
 import { getGitApi } from "./git/gitApi";
 import { GitStatus, type GitApi, type GitChange, type GitRepository } from "./git/gitTypes";
 import {
@@ -61,8 +63,8 @@ export function activate(context: vscode.ExtensionContext): void {
     "Local Review for AI",
   );
   commentController.options = {
-    prompt: "Leave a comment",
-    placeHolder: "Leave a comment",
+    prompt: "Add a comment",
+    placeHolder: "Add a comment",
   };
   const threadRegistry = new CommentThreadRegistry(commentController);
   const diffMapCache = new Map<string, DiffMap>();
@@ -72,6 +74,16 @@ export function activate(context: vscode.ExtensionContext): void {
   const previewPanel = new PreviewPanel(context.extensionUri, {
     onCopyMarkdown: async (markdown: string) => {
       await vscode.commands.executeCommand("localReviewForAi.copyMarkdown", markdown);
+    },
+    onCopyAndDiscardReview: async (markdown: string) => {
+      try {
+        await vscode.env.clipboard.writeText(markdown);
+      } catch {
+        await vscode.window.showErrorMessage("Failed to write review markdown to clipboard.");
+        return false;
+      }
+      await vscode.commands.executeCommand("localReviewForAi.discardReview");
+      return true;
     },
     onDiscardReview: async () => {
       await vscode.commands.executeCommand("localReviewForAi.discardReview");
@@ -156,25 +168,41 @@ export function activate(context: vscode.ExtensionContext): void {
     };
   }
 
-  function findMatchingChange(
-    repository: GitRepository,
-    relativePath: string,
-  ): GitChange | undefined {
-    const changeSources = [repository.state.workingTreeChanges, repository.state.untrackedChanges];
-    for (const changes of changeSources) {
-      for (const change of changes) {
-        const candidates: vscode.Uri[] = [change.uri, change.originalUri];
-        if (change.renameUri) {
-          candidates.push(change.renameUri);
+  function safeDecode(value: string): string {
+    try {
+      return decodeURIComponent(value);
+    } catch {
+      return value;
+    }
+  }
+
+  function extractRefFromGitUri(uri: vscode.Uri): string | undefined {
+    if (uri.scheme !== "git" || !uri.query) {
+      return undefined;
+    }
+    const queryParams = new URLSearchParams(uri.query);
+    const refFromParams = queryParams.get("ref");
+    if (refFromParams !== null) {
+      return refFromParams;
+    }
+
+    const decodedQuery = safeDecode(uri.query);
+    const candidates = decodedQuery === uri.query ? [uri.query] : [uri.query, decodedQuery];
+    for (const candidate of candidates) {
+      const trimmed = candidate.trim();
+      if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) {
+        continue;
+      }
+      try {
+        const parsed = JSON.parse(trimmed) as { ref?: unknown };
+        if (typeof parsed.ref === "string") {
+          return parsed.ref;
         }
-        for (const candidateUri of candidates) {
-          const candidateRelativePath = normalizeRelativePath(
-            toRelativePathFromRepoRoot(repository.rootUri.fsPath, candidateUri),
-          );
-          if (candidateRelativePath === relativePath) {
-            return change;
-          }
+        if (parsed.ref === null) {
+          return "";
         }
+      } catch {
+        // ignore non-json query
       }
     }
     return undefined;
@@ -183,27 +211,36 @@ export function activate(context: vscode.ExtensionContext): void {
   async function getOrBuildDiffMap(
     repository: GitRepository,
     repositoryRelativePath: string,
+    matchingChange?: GitChange,
   ): Promise<DiffMap> {
-    const cacheKey = makePathCacheKey(repository, repositoryRelativePath);
+    const resolvedChange =
+      matchingChange ?? findMatchingChangeForPath(repository, repositoryRelativePath);
+    const rawStatus = resolvedChange?.status ?? GitStatus.MODIFIED;
+    const fileStatus = mapChangeStatusToFileStatus(rawStatus);
+    const originalRelativePath =
+      fileStatus === "renamed" && resolvedChange?.originalUri
+        ? normalizeRelativePath(
+            toRelativePathFromRepoRoot(repository.rootUri.fsPath, resolvedChange.originalUri),
+          )
+        : repositoryRelativePath;
+    const originalRef =
+      resolvedChange?.originalUri ? extractRefFromGitUri(resolvedChange.originalUri) : undefined;
+    const originalRefForDiff = originalRef ?? "HEAD";
+    const cacheKey = [
+      makePathCacheKey(repository, repositoryRelativePath),
+      fileStatus,
+      originalRelativePath,
+      originalRefForDiff,
+    ].join("::");
     const cached = diffMapCache.get(cacheKey);
     if (cached) {
       return cached;
     }
-
-    const matchingChange = findMatchingChange(repository, repositoryRelativePath);
-    const rawStatus = matchingChange?.status ?? GitStatus.MODIFIED;
-    const fileStatus = mapChangeStatusToFileStatus(rawStatus);
-    const originalRelativePath =
-      fileStatus === "renamed" && matchingChange?.originalUri
-        ? normalizeRelativePath(
-            toRelativePathFromRepoRoot(repository.rootUri.fsPath, matchingChange.originalUri),
-          )
-        : repositoryRelativePath;
     const originalText =
       fileStatus === "untracked"
         ? ""
-        : await repository.show("HEAD", originalRelativePath).catch((error) => {
-            logError(`Failed to read HEAD:${originalRelativePath}`, error);
+        : await repository.show(originalRefForDiff, originalRelativePath).catch((error) => {
+            logError(`Failed to read ${originalRefForDiff}:${originalRelativePath}`, error);
             return "";
           });
     const modifiedText =
@@ -262,10 +299,15 @@ export function activate(context: vscode.ExtensionContext): void {
         side: workspaceFileContext.side,
       };
     }
-    const diffMap = await getOrBuildDiffMap(repository, repositoryRelativePath);
+    const matchingChange = findMatchingChangeForPath(repository, repositoryRelativePath, uri);
+    const side = resolveDiffSide({
+      uri,
+      change: matchingChange,
+    });
+    const diffMap = await getOrBuildDiffMap(repository, repositoryRelativePath, matchingChange);
     return {
       workspaceFileContext,
-      side: workspaceFileContext.side,
+      side,
       repository,
       repositoryRelativePath,
       diffMap,
@@ -287,6 +329,174 @@ export function activate(context: vscode.ExtensionContext): void {
       startLineOneBased,
       endLineOneBased: Math.max(startLineOneBased, endLineOneBased),
     };
+  }
+
+  function splitNormalizedLines(value: string): string[] {
+    return value.replaceAll("\r\n", "\n").split("\n");
+  }
+
+  function containsContiguousLineBlock(currentText: string, targetText: string): boolean {
+    const currentLines = splitNormalizedLines(currentText);
+    const targetLines = splitNormalizedLines(targetText);
+    if (targetLines.length === 0 || currentLines.length < targetLines.length) {
+      return false;
+    }
+    const lastStartIndex = currentLines.length - targetLines.length;
+    for (let startIndex = 0; startIndex <= lastStartIndex; startIndex += 1) {
+      let matched = true;
+      for (let offset = 0; offset < targetLines.length; offset += 1) {
+        if (currentLines[startIndex + offset] !== targetLines[offset]) {
+          matched = false;
+          break;
+        }
+      }
+      if (matched) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  async function getExactRangeText(
+    uri: vscode.Uri,
+    startLineOneBased: number,
+    endLineOneBased: number,
+  ): Promise<string | undefined> {
+    try {
+      const document = await vscode.workspace.openTextDocument(uri);
+      if (document.lineCount === 0) {
+        return "";
+      }
+      const startIndex = Math.max(0, Math.min(document.lineCount - 1, startLineOneBased - 1));
+      const endIndex = Math.max(
+        startIndex,
+        Math.min(document.lineCount - 1, Math.max(startLineOneBased, endLineOneBased) - 1),
+      );
+      const endCharacter = document.lineAt(endIndex).range.end.character;
+      return document.getText(new vscode.Range(startIndex, 0, endIndex, endCharacter));
+    } catch {
+      return undefined;
+    }
+  }
+
+  async function detectNoLongerExistsInCurrentCode(input: {
+    readonly targetContext: ReviewTargetContext;
+    readonly threadUri: vscode.Uri;
+    readonly target: ReturnType<typeof classifyCommentTarget>;
+    readonly lineNumber?: number;
+    readonly lineEndNumber?: number;
+    readonly isBinary: boolean;
+  }): Promise<boolean | undefined> {
+    if (input.target === "file" || input.lineNumber === undefined || input.isBinary) {
+      return undefined;
+    }
+    const lineEndNumber = input.lineEndNumber ?? input.lineNumber;
+    const targetText = await getExactRangeText(input.threadUri, input.lineNumber, lineEndNumber);
+    if (targetText === undefined || targetText.length === 0) {
+      return undefined;
+    }
+    try {
+      const currentDocument = await vscode.workspace.openTextDocument(
+        input.targetContext.workspaceFileContext.fileUri,
+      );
+      const existsInCurrentCode = containsContiguousLineBlock(currentDocument.getText(), targetText);
+      return !existsInCurrentCode;
+    } catch {
+      return undefined;
+    }
+  }
+
+  function resolveFallbackUriForSessionPath(sessionPath: string): vscode.Uri | undefined {
+    const workspaceFolders = vscode.workspace.workspaceFolders ?? [];
+    if (workspaceFolders.length === 0) {
+      return undefined;
+    }
+    const normalizedPath = normalizeRelativePath(sessionPath);
+    const [workspaceFolderName, ...relativeSegments] = normalizedPath.split("/");
+    if (!workspaceFolderName) {
+      return undefined;
+    }
+    const workspaceFolder = workspaceFolders.find((folder) => folder.name === workspaceFolderName);
+    if (!workspaceFolder) {
+      return undefined;
+    }
+    const relativePath = relativeSegments.join("/");
+    if (relativePath.length === 0) {
+      return workspaceFolder.uri;
+    }
+    return vscode.Uri.file(path.join(workspaceFolder.uri.fsPath, relativePath));
+  }
+
+  async function resolveThreadUriForComment(comment: {
+    readonly threadUri: string;
+    readonly path: string;
+  }): Promise<vscode.Uri | undefined> {
+    try {
+      const parsedUri = vscode.Uri.parse(comment.threadUri);
+      if (parsedUri.scheme !== "file") {
+        return parsedUri;
+      }
+      try {
+        await vscode.workspace.fs.stat(parsedUri);
+        return parsedUri;
+      } catch {
+        return resolveFallbackUriForSessionPath(comment.path);
+      }
+    } catch {
+      return resolveFallbackUriForSessionPath(comment.path);
+    }
+  }
+
+  async function refreshNoLongerExistsFlags(session: {
+    readonly comments: {
+      target: ReturnType<typeof classifyCommentTarget>;
+      noLongerExistsInCurrentCode?: boolean;
+      anchorLineStart?: number;
+      anchorLineEnd?: number;
+      threadRangeStartLine?: number;
+      threadRangeEndLine?: number;
+      modifiedLine?: number;
+      originalLine?: number;
+      isBinarySnippet?: boolean;
+      threadUri: string;
+      path: string;
+    }[];
+  }): Promise<void> {
+    for (const comment of session.comments) {
+      if (comment.target === "file") {
+        comment.noLongerExistsInCurrentCode = undefined;
+        continue;
+      }
+      const lineNumber =
+        comment.anchorLineStart ??
+        comment.threadRangeStartLine ??
+        comment.modifiedLine ??
+        comment.originalLine;
+      if (lineNumber === undefined) {
+        continue;
+      }
+      const lineEndNumber =
+        comment.anchorLineEnd ?? comment.threadRangeEndLine ?? lineNumber;
+      const threadUri = await resolveThreadUriForComment(comment);
+      if (!threadUri) {
+        continue;
+      }
+      const targetContext = await getReviewTargetContextForUri(threadUri);
+      if (!targetContext) {
+        continue;
+      }
+      const noLongerExistsInCurrentCode = await detectNoLongerExistsInCurrentCode({
+        targetContext,
+        threadUri,
+        target: comment.target,
+        lineNumber,
+        lineEndNumber,
+        isBinary: comment.isBinarySnippet ?? false,
+      });
+      if (noLongerExistsInCurrentCode !== undefined) {
+        comment.noLongerExistsInCurrentCode = noLongerExistsInCurrentCode;
+      }
+    }
   }
 
   async function getRangeSnippetAndLanguage(
@@ -352,6 +562,14 @@ export function activate(context: vscode.ExtensionContext): void {
       lineEndNumber,
       isFileLevel,
     });
+    const noLongerExistsInCurrentCode = await detectNoLongerExistsInCurrentCode({
+      targetContext,
+      threadUri: thread.uri,
+      target,
+      lineNumber,
+      lineEndNumber,
+      isBinary,
+    });
     let code = "";
     let language = "";
     if (isBinary) {
@@ -374,6 +592,9 @@ export function activate(context: vscode.ExtensionContext): void {
     let anchorLineStart: number | undefined;
     let anchorLineEnd: number | undefined;
     if (target !== "file" && lineNumber !== undefined) {
+      anchorSide = targetContext.side;
+      anchorLineStart = lineNumber;
+      anchorLineEnd = lineEndNumber;
       if (target === "deleted" || target === "modified-before") {
         originalLine = lineNumber;
         originalLineEnd = lineEndNumber;
@@ -382,16 +603,12 @@ export function activate(context: vscode.ExtensionContext): void {
         modifiedLine = lineNumber;
         modifiedLineEnd = lineEndNumber;
       }
-      if (target === "unchanged") {
-        anchorSide = targetContext.side;
-        anchorLineStart = lineNumber;
-        anchorLineEnd = lineEndNumber;
-      }
     }
 
     return formatOnetimeCopyBlock({
       path: targetContext.workspaceFileContext.sessionPath,
       target,
+      noLongerExistsInCurrentCode,
       originalLine,
       originalLineEnd,
       modifiedLine,
@@ -457,6 +674,14 @@ export function activate(context: vscode.ExtensionContext): void {
       lineEndNumber,
       isFileLevel,
     });
+    const noLongerExistsInCurrentCode = await detectNoLongerExistsInCurrentCode({
+      targetContext,
+      threadUri: thread.uri,
+      target,
+      lineNumber,
+      lineEndNumber,
+      isBinary,
+    });
 
     let code = "";
     let language = "";
@@ -471,17 +696,15 @@ export function activate(context: vscode.ExtensionContext): void {
     let anchorSide: "original" | "modified" | undefined;
     let anchorLineStart: number | undefined;
     let anchorLineEnd: number | undefined;
-    if (lineNumber !== undefined) {
+    if (lineNumber !== undefined && target !== "file") {
+      anchorSide = targetContext.side;
+      anchorLineStart = lineNumber;
+      anchorLineEnd = lineEndNumber;
       if (target === "deleted" || target === "modified-before") {
         originalLine = lineNumber;
       }
       if (target === "added" || target === "modified-after") {
         modifiedLine = lineNumber;
-      }
-      if (target === "unchanged") {
-        anchorSide = targetContext.side;
-        anchorLineStart = lineNumber;
-        anchorLineEnd = lineEndNumber;
       }
     }
 
@@ -490,6 +713,7 @@ export function activate(context: vscode.ExtensionContext): void {
       id: createCommentId(),
       path: targetContext.workspaceFileContext.sessionPath,
       target,
+      noLongerExistsInCurrentCode,
       originalLine,
       modifiedLine,
       code,
@@ -852,6 +1076,7 @@ export function activate(context: vscode.ExtensionContext): void {
         await vscode.window.showInformationMessage("There are no review comments to submit.");
         return;
       }
+      await refreshNoLongerExistsFlags(session);
       sessionService.openPreview();
       await persistAndRefreshUi();
       await previewPanel.show(formatReviewMarkdown(session, getNowIsoUtc()));

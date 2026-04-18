@@ -9,7 +9,7 @@ describe("previewHtml", () => {
   const codiconsCssHref =
     "vscode-webview://local-review-for-ai/node_modules/@vscode/codicons/dist/codicon.css";
 
-  it("上部アクションが Copy / Cancel / Discard comments の順で表示されること", async () => {
+  it("Close が左側、右側が Copy/Discard/Copy & Discard の順で表示されること", async () => {
     const html = await createPreviewHtml(
       webview,
       "# Test\n\nBody",
@@ -19,43 +19,52 @@ describe("previewHtml", () => {
     const copyIndex = html.indexOf('id="copyMarkdown"');
     const discardIndex = html.indexOf('id="discardReview"');
     const closeIndex = html.indexOf('id="closePreview"');
+    const copyAndDiscardIndex = html.indexOf('id="copyAndDiscardReview"');
+    const leftActionsIndex = html.indexOf('class="actions actions-left"');
+    const rightActionsIndex = html.indexOf('class="actions actions-right"');
 
     expect(copyIndex).toBeGreaterThanOrEqual(0);
     expect(discardIndex).toBeGreaterThanOrEqual(0);
     expect(closeIndex).toBeGreaterThanOrEqual(0);
-    expect(copyIndex).toBeLessThan(closeIndex);
-    expect(closeIndex).toBeLessThan(discardIndex);
+    expect(copyAndDiscardIndex).toBeGreaterThanOrEqual(0);
+    expect(leftActionsIndex).toBeGreaterThanOrEqual(0);
+    expect(rightActionsIndex).toBeGreaterThanOrEqual(0);
+    expect(closeIndex).toBeLessThan(rightActionsIndex);
+    expect(leftActionsIndex).toBeLessThan(closeIndex);
+    expect(rightActionsIndex).toBeLessThan(copyIndex);
+    expect(copyIndex).toBeLessThan(discardIndex);
+    expect(discardIndex).toBeLessThan(copyAndDiscardIndex);
+    expect(rightActionsIndex).toBeLessThan(copyAndDiscardIndex);
     expect(html).toContain('id="closePreview"');
     expect(html).toContain('id="discardReview"');
     expect(html).toContain('id="copyMarkdown"');
+    expect(html).toContain('id="copyAndDiscardReview"');
     expect(html).toContain("codicon-close");
-    expect(html).toContain("codicon-eraser");
+    expect(html).toContain("codicon-trash");
     expect(html).toContain("codicon-copy");
-    expect(html).toContain("<span>Cancel</span>");
-    expect(html).toContain("<span>Discard comments</span>");
-    expect(html).toContain('title="Discard all review comments and reset the current session."');
+    expect(html).toContain("<span>Close</span>");
+    expect(html).toContain("<span>Discard</span>");
+    expect(html).toContain("<span>Copy & Discard</span>");
     expect(html).toContain(
       'aria-label="Discard all review comments and reset the current session."',
     );
-    expect(html).toContain(
-      'data-tooltip="Discard all review comments and reset the current session."',
-    );
     expect(html).toContain('id="copyMarkdown" data-testid="preview-copy" class="primary"');
     expect(html).toContain('id="discardReview" data-testid="preview-discard" class="secondary"');
+    expect(html).toContain(
+      'id="copyAndDiscardReview" data-testid="preview-copy-discard" class="primary"',
+    );
     expect(html).toContain('id="closePreview" data-testid="preview-cancel" class="secondary"');
     expect(html).toContain('class="actions actions-left"');
     expect(html).toContain('class="actions actions-right"');
     expect(html).toContain("justify-content: space-between;");
-    expect(html).toContain("#discardReview {");
-    expect(html).toContain("#f2c94c");
-    expect(html).toContain("button[data-tooltip]::after");
-    expect(html).toContain("button[data-tooltip]:hover::after");
-    expect(html).toContain("max-width: min(360px, calc(100vw - 32px));");
-    expect(html).toContain("#discardReview[data-tooltip]::after");
-    expect(html).toContain("#discardReview[data-tooltip]::before");
+    expect(html).toContain("#discardReview,");
+    expect(html).toContain("#copyAndDiscardReview {");
     expect(html).toContain("button.secondary {");
     expect(html).toContain("var(--vscode-button-secondaryBackground)");
     expect(html).toContain("button.primary {");
+    expect(html).not.toContain("data-tooltip=");
+    expect(html).not.toContain('title="Discard all review comments and reset the current session."');
+    expect(html).not.toContain("button[data-tooltip]::after");
     expect(html).toContain('data-testid="preview-markdown-panel"');
     expect(html).toContain('data-testid="preview-markdown-editor"');
     expect(html).toContain('data-testid="preview-rendered-panel"');
@@ -100,7 +109,7 @@ describe("previewHtml", () => {
     );
   });
 
-  it("Cancel が closePreview を送信すること", async () => {
+  it("Close が closePreview を送信すること", async () => {
     const html = await createPreviewHtml(
       webview,
       "# Test\n\nBody",
@@ -118,6 +127,18 @@ describe("previewHtml", () => {
       codiconsCssHref,
     );
     expect(html).toContain("vscode.postMessage({ type: 'discardReview' });");
+  });
+
+  it("Copy & Discard が copyAndDiscardReview を送信すること", async () => {
+    const html = await createPreviewHtml(
+      webview,
+      "# Test\n\nBody",
+      githubMarkdownCssHref,
+      codiconsCssHref,
+    );
+    expect(html).toContain(
+      "vscode.postMessage({ type: 'copyAndDiscardReview', markdown: markdownEditor.value });",
+    );
   });
 
   it("更新メッセージは世代IDで逆転適用を防ぐこと", async () => {

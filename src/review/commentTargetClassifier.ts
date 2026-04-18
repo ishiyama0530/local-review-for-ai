@@ -29,7 +29,7 @@ export function classifyCommentTarget(input: ClassifierInput): ReviewTarget {
       continue;
     }
     if (detectedTarget !== currentTarget) {
-      return "file";
+      return "mixed";
     }
   }
   return detectedTarget ?? "file";

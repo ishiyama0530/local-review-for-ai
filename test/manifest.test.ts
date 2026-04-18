@@ -51,7 +51,8 @@ describe("package.json manifest", () => {
     const submitCommand = commands.find(
       (command) => command.command === "localReviewForAi.submitReview",
     );
-    expect(submitCommand?.shortTitle).toBe("✅ Submit comments");
+    expect(submitCommand?.title).toBe("Submit comments");
+    expect(submitCommand?.shortTitle).toBe("✅");
     expect(
       commands.some((command) => command.command === "localReviewForAi.submitReviewStale"),
     ).toBe(false);

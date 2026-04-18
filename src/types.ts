@@ -3,6 +3,7 @@ export type ReviewTarget =
   | "deleted"
   | "modified-before"
   | "modified-after"
+  | "mixed"
   | "unchanged"
   | "file";
 
@@ -13,6 +14,7 @@ export interface ReviewComment {
   sequence: number;
   path: string;
   target: ReviewTarget;
+  noLongerExistsInCurrentCode?: boolean;
   originalLine?: number;
   modifiedLine?: number;
   code: string;

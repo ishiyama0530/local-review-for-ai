@@ -84,7 +84,7 @@ describe("commentTargetClassifier", () => {
     expect(result).toBe("added");
   });
 
-  it("複数行範囲に異なる種別が混在する場合は file にフォールバックすること", () => {
+  it("複数行範囲に異なる種別が混在する場合は mixed と判定すること", () => {
     const result = classifyCommentTarget({
       diffMap,
       side: "modified",
@@ -92,10 +92,10 @@ describe("commentTargetClassifier", () => {
       lineEndNumber: 9,
       isFileLevel: false,
     });
-    expect(result).toBe("file");
+    expect(result).toBe("mixed");
   });
 
-  it("複数行範囲に差分対象外の行を含み、種別が混在する場合は file にフォールバックすること", () => {
+  it("複数行範囲に差分対象外の行を含み、種別が混在する場合は mixed と判定すること", () => {
     const result = classifyCommentTarget({
       diffMap,
       side: "modified",
@@ -103,7 +103,7 @@ describe("commentTargetClassifier", () => {
       lineEndNumber: 7,
       isFileLevel: false,
     });
-    expect(result).toBe("file");
+    expect(result).toBe("mixed");
   });
 
   it("diffMap が未解決でも行コメントは unchanged と判定すること", () => {

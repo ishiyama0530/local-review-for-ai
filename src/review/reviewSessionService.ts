@@ -23,6 +23,7 @@ export interface CreateCommentInput {
   readonly id: string;
   readonly path: string;
   readonly target: ReviewComment["target"];
+  readonly noLongerExistsInCurrentCode?: boolean;
   readonly originalLine?: number;
   readonly modifiedLine?: number;
   readonly code: string;
@@ -85,6 +86,7 @@ export class ReviewSessionService {
       sequence: this.session.nextSequence,
       path: input.path,
       target: input.target,
+      noLongerExistsInCurrentCode: input.noLongerExistsInCurrentCode,
       originalLine: input.originalLine,
       modifiedLine: input.modifiedLine,
       code: input.code,

@@ -5,7 +5,20 @@
   "private": true,
   "description": "Collect review comments on local and export Markdown for AI agents.",
   "categories": [
-    "Other"
+    "SCM Providers",
+    "Machine Learning"
+  ],
+  "keywords": [
+    "ai",
+    "code review",
+    "pull request",
+    "diff",
+    "comment",
+    "markdown",
+    "git",
+    "copilot",
+    "agent",
+    "local review"
   ],
   "license": "MIT",
   "repository": {
